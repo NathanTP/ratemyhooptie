@@ -16,6 +16,7 @@ def getPrediction(rawImage, client):
 
     b = io.BytesIO()
     im.save(b, format="JPEG")
+    img_str = base64.b64encode(b.getvalue()).decode("utf-8")
 
     completion = client.chat.completions.create(
         model="gpt-4-vision-preview",
@@ -27,7 +28,7 @@ def getPrediction(rawImage, client):
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{im}",
+                            "url": f"data:image/jpeg;base64,{img_str}",
                             "detail": "low"
                         },
                     }
@@ -37,7 +38,7 @@ def getPrediction(rawImage, client):
         max_tokens=200
     )
 
-    return(completion.choices[0].message)
+    return(completion.choices[0].message.content)
 
 
 def applyMsg(img, msg):
@@ -75,7 +76,7 @@ def applyMsg(img, msg):
 
 
 def main():
-    # OAIclient = OpenAI()
+    OAIClient = OpenAI()
     cam = cv2.VideoCapture(0)
     windowName = "Your Hooptie"
     cv2.namedWindow(windowName)
@@ -91,8 +92,8 @@ def main():
         cv2.imshow(windowName, frame)
         k = cv2.waitKey(33)
         if k == 32:
-            # msg = getPrediction(frame, client)
-            msg = "Your racecar is bad and you should feel bad"
+            msg = getPrediction(frame, OAIClient)
+            # msg = "Your racecar is bad and you should feel bad"
 
             textImg = applyMsg(frame, msg)
             cv2.imshow(windowName, textImg)
