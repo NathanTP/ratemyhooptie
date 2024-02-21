@@ -24,7 +24,7 @@ def getPrediction(rawImage, client):
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Is this person wearing a hat?"},
+                    {"type": "text", "text": "What kind of car is this?"},
                     {
                         "type": "image_url",
                         "image_url": {
@@ -107,3 +107,8 @@ def main():
 
 
 main()
+
+# OAIClient = OpenAI()
+# Must be a square aspect-ratio image in jpeg format
+# frame = cv2.imread("PATH/TO/IMAGE.jpeg")
+# print(getPrediction(frame, OAIClient))
