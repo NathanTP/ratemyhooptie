@@ -92,8 +92,7 @@ def main():
         k = cv2.waitKey(33)
         if k == 32:
             # msg = getPrediction(frame, client)
-            # msg = "The car in the image appears to be a modified Acura Integra. Without knowing the specifics of the modifications and the condition of vital components such as the engine, suspension, and brakes, it's difficult to assess its performance as a racecar. If the modifications are poorly done, it might not be safe or competitive on a racetrack."
-            msg = "something short"
+            msg = "Your racecar is bad and you should feel bad"
 
             textImg = applyMsg(frame, msg)
             cv2.imshow(windowName, textImg)
