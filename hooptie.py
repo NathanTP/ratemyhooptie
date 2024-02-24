@@ -8,6 +8,8 @@ import base64
 import textwrap
 from openai import OpenAI
 import subprocess as sp
+import random
+import numpy as np
 
 
 def getPrediction(rawImage, client):
@@ -24,7 +26,7 @@ def getPrediction(rawImage, client):
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "What kind of car is this?"},
+                    {"type": "text", "text": "You are an expert in automotive engineering. You have a sardonic personality and are prone to witty commentary. Your goal is to identify the automobile in this picture and then say something provacative and amusing about the automobile. You should make fun of its owners and question their judgment for bringing the car here. You should end with something amusing and cheeky. "},
                     {
                         "type": "image_url",
                         "image_url": {
@@ -35,7 +37,7 @@ def getPrediction(rawImage, client):
                 ],
             }
         ],
-        max_tokens=200
+        max_tokens=150
     )
 
     return(completion.choices[0].message.content)
@@ -47,7 +49,7 @@ def applyMsg(img, msg):
 
     font = cv2.FONT_HERSHEY_SIMPLEX
 
-    wrapped = textwrap.wrap(msg, width=45)
+    wrapped = textwrap.wrap(msg, width=38)
     x, y = 10, 40
     font_size = 1
     font_thickness = 2
@@ -57,29 +59,41 @@ def applyMsg(img, msg):
 
         gap = textsize[1] + 10
 
-        y = int((textImg.shape[0] + textsize[1]) / 2) + i * gap
+        # y = int((textImg.shape[0] + textsize[1]) / 2) + i * gap
+        y = 50 + i * gap
         x = int((textImg.shape[1] - textsize[0]) / 2)
 
         cv2.putText(textImg, line, (x, y), font,
                     font_size,
                     (255,255,255),
-                    font_thickness+1,
-                    lineType = cv2.LINE_AA)
-
-        cv2.putText(textImg, line, (x, y), font,
-                    font_size,
-                    (0,0,0),
                     font_thickness,
                     lineType = cv2.LINE_AA)
 
     return textImg
 
 
+def display(img, msg, windowName):
+    textBox = np.zeros([1080,675,3],dtype=np.uint8)
+    textBox.fill(0)
+    textBox = applyMsg(textBox, msg)
+
+    imgBig = cv2.resize(img, (1080,1080))
+    textImg = np.concatenate((imgBig, textBox), axis=1)
+
+    k = 13
+    while k == 13:
+        cv2.imshow(windowName, textImg)
+        speechProc = sp.Popen(["say", msg])
+
+        k = cv2.waitKey(0)
+        speechProc.wait()
+
+
 def main():
     OAIClient = OpenAI()
     cam = cv2.VideoCapture(0)
-    windowName = "Your Hooptie"
-    cv2.namedWindow(windowName)
+    imgWindow = "Your Hooptie"
+    cv2.namedWindow(imgWindow, cv2.WINDOW_NORMAL)
 
     while True:
         ret, frame = cam.read()
@@ -89,19 +103,20 @@ def main():
         # Crop assuming the raw frame is wider than it is tall
         xMargin = int((frame.shape[1] - frame.shape[0]) / 2)
         frame = frame[:, xMargin:-xMargin]
-        cv2.imshow(windowName, frame)
+        cv2.imshow(imgWindow, frame)
         k = cv2.waitKey(33)
         if k == 32:
+            name = str(random.randint(0, 10e9))
             msg = getPrediction(frame, OAIClient)
+            # with open("ratings/5578118396.txt", 'r') as f:
+            #     msg = f.read()
             # msg = "Your racecar is bad and you should feel bad"
 
-            textImg = applyMsg(frame, msg)
-            cv2.imshow(windowName, textImg)
+            with open("ratings/" + name + ".txt", 'w') as f:
+                f.write(msg)
+            cv2.imwrite("ratings/" + name + ".png", frame)
 
-            speechProc = sp.Popen(["say", msg])
-
-            cv2.waitKey(0)
-            speechProc.wait()
+            display(frame, msg, imgWindow)
         elif k == 27:
             break
 
