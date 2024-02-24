@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-import pathlib
 import cv2
 import PIL as pil
-from PIL import Image
 import io
 import base64
 import textwrap
@@ -83,7 +81,7 @@ def display(img, msg, windowName):
     k = 13
     while k == 13:
         cv2.imshow(windowName, textImg)
-        speechProc = sp.Popen(["say", msg])
+        speechProc = sp.Popen(["say", "-r", "200", msg])
 
         k = cv2.waitKey(0)
         speechProc.wait()
