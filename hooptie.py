@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import cv2
 import PIL as pil
+from PIL import Image
 import io
 import base64
 import textwrap
@@ -38,7 +39,10 @@ def getPrediction(rawImage, client):
         max_tokens=150
     )
 
-    return(completion.choices[0].message.content)
+    # GPT4 sometimes ends mid-sentence. Just cut off the last incomplete sentence.
+    msg = completion.choices[0].message.content
+    msg = msg[:msg.rfind(".")+1]
+    return(msg)
 
 
 def applyMsg(img, msg):
@@ -81,7 +85,7 @@ def display(img, msg, windowName):
     k = 13
     while k == 13:
         cv2.imshow(windowName, textImg)
-        speechProc = sp.Popen(["say", "-r", "200", msg])
+        speechProc = sp.Popen(["say", "-r", "210", msg])
 
         k = cv2.waitKey(0)
         speechProc.wait()
@@ -104,6 +108,7 @@ def main():
         cv2.imshow(imgWindow, frame)
         k = cv2.waitKey(33)
         if k == 32:
+            # frame = cv2.imread("ratings/5578118396.png")
             name = str(random.randint(0, 10e9))
             msg = getPrediction(frame, OAIClient)
             # with open("ratings/5578118396.txt", 'r') as f:
