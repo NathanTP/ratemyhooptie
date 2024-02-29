@@ -38,7 +38,7 @@ def getPrediction(rawImage, client):
                 ],
             }
         ],
-        max_tokens=200
+        max_tokens=150
     )
 
     # GPT4 sometimes ends mid-sentence. Just cut off the last incomplete sentence.
@@ -76,7 +76,7 @@ def applyMsg(img, msg):
     return textImg
 
 
-def display(img, msg, windowName):
+def display(img, msg, windowName, silent=False):
     textBox = np.zeros([1080,675,3],dtype=np.uint8)
     textBox.fill(0)
     textBox = applyMsg(textBox, msg)
@@ -87,10 +87,13 @@ def display(img, msg, windowName):
     k = 13
     while k == 13:
         cv2.imshow(windowName, textImg)
-        speechProc = sp.Popen(["say", "-r", "210", msg])
+        if not silent:
+            speechProc = sp.Popen(["say", "-r", "210", msg])
 
         k = cv2.waitKey(0)
-        speechProc.wait()
+
+        if not silent:
+            speechProc.wait()
 
     return textImg
 
@@ -116,6 +119,7 @@ def main():
     parser = argparse.ArgumentParser(description="Rate your hooptie with the power of ARTIFICIAL INTELLIGENCE!")
     parser.add_argument("-f", "--file", type=pathlib.Path, help="Rate a static image rather than using the camera. If there is a FILENAME.txt in the same directory, that will be used as the rating rather than asking the ARTIFICIAL INTELLIGENCE!.")
     parser.add_argument("-o", "--output", type=pathlib.Path, help="Save the joint img+prediction to the specified file.")
+    parser.add_argument("-s", "--silent", action="store_true", help="Supress the totally badass robot voice.")
 
     args = parser.parse_args()
 
@@ -137,7 +141,7 @@ def main():
         else:
             msg = getPrediction(img, OAIClient)
 
-        msgImg = display(img, msg, imgWindow)
+        msgImg = display(img, msg, imgWindow, args.silent)
 
         if args.output is not None:
             cv2.imwrite(str(args.output), msgImg)
@@ -160,7 +164,7 @@ def main():
                     f.write(msg)
                 cv2.imwrite("ratings/" + name + ".png", frame)
 
-                msgImg = display(frame, msg, imgWindow)
+                msgImg = display(frame, msg, imgWindow, args.silent)
                 if args.output is not None:
                     cv2.imwrite(str(args.output), msgImg)
             elif k == 27:
