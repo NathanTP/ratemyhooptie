@@ -9,6 +9,8 @@ from openai import OpenAI
 import subprocess as sp
 import random
 import numpy as np
+import argparse
+import pathlib
 
 
 def getPrediction(rawImage, client):
@@ -36,7 +38,7 @@ def getPrediction(rawImage, client):
                 ],
             }
         ],
-        max_tokens=150
+        max_tokens=200
     )
 
     # GPT4 sometimes ends mid-sentence. Just cut off the last incomplete sentence.
@@ -90,41 +92,83 @@ def display(img, msg, windowName):
         k = cv2.waitKey(0)
         speechProc.wait()
 
+    return textImg
+
+
+def cropSquare(img):
+    cropped = img.copy()
+
+    if cropped.shape[1] == cropped.shape[0]:
+        pass
+    elif cropped.shape[1] > cropped.shape[0]:
+        # Crop assuming the raw frame is wider than it is tall
+        xMargin = int((cropped.shape[1] - cropped.shape[0]) / 2)
+        cropped = cropped[:, xMargin:-xMargin].copy()
+    else:
+        # Crop assuming the raw frame is taller than it is wide
+        yMargin = int((cropped.shape[0] - cropped.shape[1]) / 2)
+        cropped = cropped[yMargin:-yMargin, :]
+
+    return cropped
+
 
 def main():
+    parser = argparse.ArgumentParser(description="Rate your hooptie with the power of ARTIFICIAL INTELLIGENCE!")
+    parser.add_argument("-f", "--file", type=pathlib.Path, help="Rate a static image rather than using the camera. If there is a FILENAME.txt in the same directory, that will be used as the rating rather than asking the ARTIFICIAL INTELLIGENCE!.")
+    parser.add_argument("-o", "--output", type=pathlib.Path, help="Save the joint img+prediction to the specified file.")
+
+    args = parser.parse_args()
+
     OAIClient = OpenAI()
-    cam = cv2.VideoCapture(0)
+
     imgWindow = "Your Hooptie"
     cv2.namedWindow(imgWindow, cv2.WINDOW_NORMAL)
 
-    while True:
-        ret, frame = cam.read()
-        if not ret:
-            raise RuntimeError("Camera failed!")
+    if args.file is not None:
+        imgPath = args.file.resolve()
+        msgPath = imgPath.with_suffix(".txt")
 
-        # Crop assuming the raw frame is wider than it is tall
-        xMargin = int((frame.shape[1] - frame.shape[0]) / 2)
-        frame = frame[:, xMargin:-xMargin]
-        cv2.imshow(imgWindow, frame)
-        k = cv2.waitKey(33)
-        if k == 32:
-            # frame = cv2.imread("ratings/5578118396.png")
-            name = str(random.randint(0, 10e9))
-            msg = getPrediction(frame, OAIClient)
-            # with open("ratings/5578118396.txt", 'r') as f:
-            #     msg = f.read()
-            # msg = "Your racecar is bad and you should feel bad"
+        img = cv2.imread(str(imgPath))
+        img = cropSquare(img)
 
-            with open("ratings/" + name + ".txt", 'w') as f:
-                f.write(msg)
-            cv2.imwrite("ratings/" + name + ".png", frame)
+        if msgPath.exists():
+            with open(msgPath, 'r') as f:
+                msg = f.read()
+        else:
+            msg = getPrediction(img, OAIClient)
 
-            display(frame, msg, imgWindow)
-        elif k == 27:
-            break
+        msgImg = display(img, msg, imgWindow)
+
+        if args.output is not None:
+            cv2.imwrite(str(args.output), msgImg)
+    else:
+        cam = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cam.read()
+            if not ret:
+                raise RuntimeError("Camera failed!")
+
+            frame = cropSquare(frame)
+            cv2.imshow(imgWindow, frame)
+            k = cv2.waitKey(33)
+            if k == 32:
+                name = str(random.randint(0, 10e9))
+                msg = getPrediction(frame, OAIClient)
+                # msg = "Your racecar is bad and you should feel bad"
+
+                with open("ratings/" + name + ".txt", 'w') as f:
+                    f.write(msg)
+                cv2.imwrite("ratings/" + name + ".png", frame)
+
+                msgImg = display(frame, msg, imgWindow)
+                if args.output is not None:
+                    cv2.imwrite(str(args.output), msgImg)
+            elif k == 27:
+                break
 
 
-main()
+if __name__ == "__main__":
+    main()
 
 # OAIClient = OpenAI()
 # Must be a square aspect-ratio image in jpeg format
