@@ -13,6 +13,13 @@ import argparse
 import pathlib
 
 
+usage = """
+Usage:
+    Press space to take a picture of your hooptie. The picture and the ARTIFICIAL INTELLIGENCEs rating will be displayed (probably). Press ENTER to replay the message or any other key to rate a new hooptie.
+
+    Your hooptie and its rating will be saved for future enjoyment (use the --output argument to control where).
+"""
+
 def getPrediction(rawImage, client):
     im = pil.Image.fromarray(cv2.cvtColor(rawImage, cv2.COLOR_BGR2RGB))
     im = im.resize((512, 512))
@@ -77,6 +84,8 @@ def applyMsg(img, msg):
 
 
 def display(img, msg, windowName, silent=False):
+    """Display the image and message, and read the message. Press "enter" to
+    replay, or any other key to exit."""
     textBox = np.zeros([1080,675,3],dtype=np.uint8)
     textBox.fill(0)
     textBox = applyMsg(textBox, msg)
@@ -84,6 +93,7 @@ def display(img, msg, windowName, silent=False):
     imgBig = cv2.resize(img, (1080,1080))
     textImg = np.concatenate((imgBig, textBox), axis=1)
 
+    # 13 is enter
     k = 13
     while k == 13:
         cv2.imshow(windowName, textImg)
@@ -123,7 +133,7 @@ def main():
 
     args = parser.parse_args()
 
-    OAIClient = OpenAI()
+    print(usage)
 
     imgWindow = "Your Hooptie"
     cv2.namedWindow(imgWindow, cv2.WINDOW_NORMAL)
@@ -139,6 +149,7 @@ def main():
             with open(msgPath, 'r') as f:
                 msg = f.read()
         else:
+            OAIClient = OpenAI()
             msg = getPrediction(img, OAIClient)
 
         msgImg = display(img, msg, imgWindow, args.silent)
@@ -147,6 +158,7 @@ def main():
             cv2.imwrite(str(args.output), msgImg)
     else:
         cam = cv2.VideoCapture(0)
+        OAIClient = OpenAI()
         while True:
             ret, frame = cam.read()
             if not ret:
