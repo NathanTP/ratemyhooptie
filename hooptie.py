@@ -20,6 +20,7 @@ Usage:
     Your hooptie and its rating will be saved for future enjoyment (use the --output argument to control where).
 """
 
+
 def getPrediction(rawImage, client):
     im = pil.Image.fromarray(cv2.cvtColor(rawImage, cv2.COLOR_BGR2RGB))
     im = im.resize((512, 512))
