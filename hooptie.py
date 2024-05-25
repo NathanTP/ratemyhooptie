@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 import cv2
 import PIL as pil
 from PIL import Image
@@ -34,7 +34,7 @@ def getPrediction(rawImage, client):
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "You are an expert in automotive engineering. You have a sardonic personality and are prone to witty commentary. Your goal is to identify the automobile in this picture and then say something provacative and amusing about the automobile. You should make fun of its owners and question their judgment for bringing the car here. You should end with something amusing and cheeky. "},
+                    {"type": "text", "text": "You are an expert in automotive engineering. You have a sardonic personality and are prone to witty commentary, you have some favorite models which these cars are not. Your goal is to accurately identify the automobile in this picture and then say something provacative and amusing about the automobile. You should make fun of its owners and question their taste and judgment for bringing the car here. You should end with something amusing and cheeky. You are allowed to ocasionally say nice things. "},
                     {
                         "type": "image_url",
                         "image_url": {
@@ -60,9 +60,11 @@ def applyMsg(img, msg):
 
     font = cv2.FONT_HERSHEY_SIMPLEX
 
-    wrapped = textwrap.wrap(msg, width=38)
+    # wrapped = textwrap.wrap(msg, width=38)
+    wrapped = textwrap.wrap(msg, width=45)
     x, y = 10, 40
-    font_size = 1
+    # font_size = 1
+    font_size = 1.4
     font_thickness = 2
 
     for i, line in enumerate(wrapped):
@@ -86,11 +88,13 @@ def applyMsg(img, msg):
 def display(img, msg, windowName, silent=False):
     """Display the image and message, and read the message. Press "enter" to
     replay, or any other key to exit."""
-    textBox = np.zeros([1080,675,3],dtype=np.uint8)
+    # textBox = np.zeros([1080,675,3],dtype=np.uint8)
+    textBox = np.zeros([1920,1280,3],dtype=np.uint8)
     textBox.fill(0)
     textBox = applyMsg(textBox, msg)
 
-    imgBig = cv2.resize(img, (1080,1080))
+    # imgBig = cv2.resize(img, (1080,1080))
+    imgBig = cv2.resize(img, (1920,1920))
     textImg = np.concatenate((imgBig, textBox), axis=1)
 
     # 13 is enter
@@ -98,7 +102,7 @@ def display(img, msg, windowName, silent=False):
     while k == 13:
         cv2.imshow(windowName, textImg)
         if not silent:
-            speechProc = sp.Popen(["say", "-r", "210", msg])
+            speechProc = sp.Popen(["say", "-v", "Daniel", "-r", "175", msg])
 
         k = cv2.waitKey(0)
 
@@ -170,11 +174,11 @@ def main():
             if k == 32:
                 name = str(random.randint(0, 10e9))
                 msg = getPrediction(frame, OAIClient)
-                # msg = "Your racecar is bad and you should feel bad"
 
-                with open("ratings/" + name + ".txt", 'w') as f:
+                outDir = "thill24_race1/"
+                with open(outDir + name + ".txt", 'w') as f:
                     f.write(msg)
-                cv2.imwrite("ratings/" + name + ".png", frame)
+                cv2.imwrite(outDir + name + ".png", frame)
 
                 msgImg = display(frame, msg, imgWindow, args.silent)
                 if args.output is not None:
@@ -185,8 +189,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# OAIClient = OpenAI()
-# Must be a square aspect-ratio image in jpeg format
-# frame = cv2.imread("PATH/TO/IMAGE.jpeg")
-# print(getPrediction(frame, OAIClient))
