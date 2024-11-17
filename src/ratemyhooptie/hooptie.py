@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import cv2
 import PIL as pil
 from PIL import Image
@@ -11,6 +10,7 @@ import random
 import numpy as np
 import argparse
 import pathlib
+import abc
 
 
 usage = """
@@ -21,41 +21,61 @@ Usage:
 """
 
 
-def getPrediction(rawImage, client):
-    im = pil.Image.fromarray(cv2.cvtColor(rawImage, cv2.COLOR_BGR2RGB))
-    im = im.resize((512, 512))
-
-    b = io.BytesIO()
-    im.save(b, format="JPEG")
-    img_str = base64.b64encode(b.getvalue()).decode("utf-8")
-
-    completion = client.chat.completions.create(
-        model="gpt-4-vision-preview",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "You are an expert in automotive engineering. You have a sardonic personality and are prone to witty commentary, you have some favorite models which these cars are not. Your goal is to accurately identify the automobile in this picture and then say something provacative and amusing about the automobile. You should make fun of its owners and question their taste and judgment for bringing the car here. You should end with something amusing and cheeky. You are allowed to ocasionally say nice things. "},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{img_str}",
-                            "detail": "low"
-                        },
-                    }
-                ],
-            }
-        ],
-        max_tokens=150
-    )
-
-    # GPT4 sometimes ends mid-sentence. Just cut off the last incomplete sentence.
-    msg = completion.choices[0].message.content
-    msg = msg[:msg.rfind(".")+1]
-    return(msg)
+class Critic(abc.ABC):
+    @abc.abstractmethod
+    def rate(self, img: np.ndarray) -> str:
+        pass
 
 
-def applyMsg(img, msg):
+class ReplayCritic(Critic):
+    def __init__(self, msg_path: pathlib.Path):
+        with open(msg_path, 'r') as f:
+            self.msg = f.read()
+
+    def rate(self, img: np.ndarray) -> str:
+        return self.msg
+
+
+class OpenaiCritic(Critic):
+    def __init__(self):
+        self.client = OpenAI()
+
+    def rate(self, img: np.ndarray) -> str:
+        im = pil.Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        im = im.resize((512, 512))
+
+        b = io.BytesIO()
+        im.save(b, format="JPEG")
+        img_str = base64.b64encode(b.getvalue()).decode("utf-8")
+
+        completion = self.client.chat.completions.create(
+            # model="gpt-4-vision-preview",
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "You are an expert in automotive engineering. You have a sardonic personality and are prone to witty commentary, you have some favorite models which these cars are not. Your goal is to accurately identify the automobile in this picture and then say something provacative and amusing about the automobile. You should make fun of its owners and question their taste and judgment for bringing the car here. You should end with something amusing and cheeky. You are allowed to ocasionally say nice things. "},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{img_str}",
+                                "detail": "low"
+                            },
+                        }
+                    ],
+                }
+            ],
+            max_tokens=150
+        )
+
+        # GPT4 sometimes ends mid-sentence. Just cut off the last incomplete sentence.
+        msg = completion.choices[0].message.content
+        msg = msg[:msg.rfind(".")+1]
+        return(msg)
+
+
+def apply_msg(img: np.ndarray, msg: str):
     textImg = img.copy()
     height, width, channel = textImg.shape
 
@@ -86,13 +106,18 @@ def applyMsg(img, msg):
     return textImg
 
 
-def display(img, msg, windowName, silent=False):
+def display(
+        img: np.ndarray,
+        msg: str,
+        windowName:str,
+        silent: bool =False
+) -> np.ndarray:
     """Display the image and message, and read the message. Press "enter" to
     replay, or any other key to exit."""
     # textBox = np.zeros([1080,675,3],dtype=np.uint8)
     textBox = np.zeros([1920,1280,3],dtype=np.uint8)
     textBox.fill(0)
-    textBox = applyMsg(textBox, msg)
+    textBox = apply_msg(textBox, msg)
 
     # imgBig = cv2.resize(img, (1080,1080))
     imgBig = cv2.resize(img, (1920,1920))
@@ -113,7 +138,7 @@ def display(img, msg, windowName, silent=False):
     return textImg
 
 
-def cropSquare(img):
+def crop_square(img: np.ndarray):
     cropped = img.copy()
 
     if cropped.shape[1] == cropped.shape[0]:
@@ -148,7 +173,7 @@ def main():
         msgPath = imgPath.with_suffix(".txt")
 
         img = cv2.imread(str(imgPath))
-        img = cropSquare(img)
+        img = crop_square(img)
 
         if msgPath.exists():
             with open(msgPath, 'r') as f:
@@ -169,7 +194,7 @@ def main():
             if not ret:
                 raise RuntimeError("Camera failed!")
 
-            frame = cropSquare(frame)
+            frame = crop_square(frame)
             cv2.imshow(imgWindow, frame)
             k = cv2.waitKey(33)
             if k == 32:
@@ -190,3 +215,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

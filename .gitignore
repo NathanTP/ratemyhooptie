@@ -1,2 +1,4 @@
 *.swp
 .ropeproject
+__pycache__
+.DS_Store
