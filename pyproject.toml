@@ -23,10 +23,15 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
+# The specific versions of PyQt is due to a bug in 6.7.1 that breaks the camera
+# backend. This will eventually be fixed and we can try to remove the
+# restriction.
 dependencies = [
     "opencv-python",
     "openai",
-    "pillow"
+    "pillow",
+    "PyQt6==6.7.0",
+    "PyQt6-Qt6==6.7.0",
 ]
 
 [project.urls]

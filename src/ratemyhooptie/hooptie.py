@@ -1,5 +1,7 @@
+import sys
 import cv2
 import PIL as pil
+from PIL import ImageQt
 from PIL import Image
 import io
 import base64
@@ -11,6 +13,36 @@ import numpy as np
 import argparse
 import pathlib
 import abc
+
+from PyQt6 import QtCore as qt
+
+from PyQt6.QtWidgets import (
+        QApplication,
+        QMainWindow,
+        QWidget,
+        QHBoxLayout,
+        QVBoxLayout,
+        QStackedLayout,
+        QPushButton,
+        QLabel,
+		QGraphicsView,
+        QGraphicsScene,
+        QFrame,
+        QSizePolicy,
+)
+
+from PyQt6.QtMultimedia import (
+        QCamera,
+        QMediaCaptureSession,
+        QImageCapture
+)
+
+from PyQt6.QtMultimediaWidgets import (
+        QVideoWidget,
+        QGraphicsVideoItem,
+)
+
+from PyQt6.QtGui import QImage, QPixmap, QFont
 
 
 usage = """
@@ -155,64 +187,368 @@ def crop_square(img: np.ndarray):
     return cropped
 
 
+# def main():
+#     parser = argparse.ArgumentParser(description="Rate your hooptie with the power of ARTIFICIAL INTELLIGENCE!")
+#     parser.add_argument("-f", "--file", type=pathlib.Path, help="Rate a static image rather than using the camera. If there is a FILENAME.txt in the same directory, that will be used as the rating rather than asking the ARTIFICIAL INTELLIGENCE!.")
+#     parser.add_argument("-o", "--output", type=pathlib.Path, help="Save the joint img+prediction to the specified file.")
+#     parser.add_argument("-s", "--silent", action="store_true", help="Supress the totally badass robot voice.")
+#
+#     args = parser.parse_args()
+#
+#     print(usage)
+#
+#     imgWindow = "Your Hooptie"
+#     cv2.namedWindow(imgWindow, cv2.WINDOW_NORMAL)
+#
+#     if args.file is not None:
+#         imgPath = args.file.resolve()
+#         msgPath = imgPath.with_suffix(".txt")
+#
+#         img = cv2.imread(str(imgPath))
+#         img = crop_square(img)
+#
+#         if msgPath.exists():
+#             with open(msgPath, 'r') as f:
+#                 msg = f.read()
+#         else:
+#             OAIClient = OpenAI()
+#             msg = getPrediction(img, OAIClient)
+#
+#         msgImg = display(img, msg, imgWindow, args.silent)
+#
+#         if args.output is not None:
+#             cv2.imwrite(str(args.output), msgImg)
+#     else:
+#         cam = cv2.VideoCapture(0)
+#         OAIClient = OpenAI()
+#         while True:
+#             ret, frame = cam.read()
+#             if not ret:
+#                 raise RuntimeError("Camera failed!")
+#
+#             frame = crop_square(frame)
+#             cv2.imshow(imgWindow, frame)
+#             k = cv2.waitKey(33)
+#             if k == 32:
+#                 name = str(random.randint(0, 10e9))
+#                 msg = getPrediction(frame, OAIClient)
+#
+#                 outDir = "thill24_race1/"
+#                 with open(outDir + name + ".txt", 'w') as f:
+#                     f.write(msg)
+#                 cv2.imwrite(outDir + name + ".png", frame)
+#
+#                 msgImg = display(frame, msg, imgWindow, args.silent)
+#                 if args.output is not None:
+#                     cv2.imwrite(str(args.output), msgImg)
+#             elif k == 27:
+#                 break
+
+# class MainWindow(qtw.QMainWindow):
+#     def __init__(self):
+#         super().__init__()
+#
+#         self.setWindowTitle("Rate My Hooptie!")
+#
+#         self.label = qtw.QLabel()
+#
+#         img = cv2.imread("/Users/nathanp/repos/ratemyhooptie/tests/testResources/test.png")
+#         rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#         pil_image = pil.Image.fromarray(rgb_image).convert('RGB')
+#         qimg = qtgui.QPixmap.fromImage(pil.ImageQt.ImageQt(pil_image))
+#         
+#         self.label.setPixmap(qimg)
+#         self.setCentralWidget(self.label)
+#         # self.input = qtw.QLineEdit()
+#         # self.input.textChanged.connect(self.label.setText)
+#         #
+#         # layout = qtw.QHBoxLayout()
+#         # layout.addWidget(self.input)
+#         # layout.addWidget(self.label)
+#         #
+#         # container = qtw.QWidget()
+#         # container.setLayout(layout)
+#         #
+#         # self.setCentralWidget(container)
+
+
+# class LearnMainWindow(qtw.QMainWindow):
+#     def __init__(self):
+#         super().__init__()
+#
+#         self.setWindowTitle("Rate My Hooptie!")
+#
+#         devs = qtmed.QMediaDevices.videoInputs()
+#         assert len(devs) > 0, "Camera not working"
+#
+#         camera = qtmed.QCamera()
+#         self.viewfinder = qt.QtMultimediaWidgets.QVideoWidget()
+#
+#         captureSession = qtmed.QMediaCaptureSession()
+#         captureSession.setCamera(camera)
+#         captureSession.setVideoOutput(self.viewfinder)
+#
+#         layout = qtw.QHBoxLayout()
+#         layout.addWidget(self.viewfinder)
+#
+#         self.wnd = qtw.QWidget(self)
+#         self.wnd.setLayout(layout)
+#         self.setCentralWidget(self.wnd)
+#
+#         # self.viewfinder.show()
+#         camera.start()
+#
+#         container = qtw.QWidget()
+#         container.setLayout(layout)
+#
+#         self.setCentralWidget(container)
+#
+#
+#
+# def main():
+#     app = qtw.QApplication(sys.argv)
+#
+#     window = LearnMainWindow()
+#     window.show()
+#     # camera = qtmed.QCamera()
+#     # viewfinder = qt.QtMultimediaWidgets.QVideoWidget()
+#     #
+#     # captureSession = qtmed.QMediaCaptureSession()
+#     # captureSession.setCamera(camera)
+#     # captureSession.setVideoOutput(viewfinder)
+#     #
+#     # viewfinder.show()
+#     # camera.start()
+#
+#     app.exec()
+#
+#
+# if __name__ == "__main__":
+#     main()
+
+# from https://stackoverflow.com/questions/69183307/how-to-display-image-in-ratio-as-preserveaspectfit-in-qt-widgets
+class ScaledImage(QGraphicsView):
+    """Like a QLabel or QGraphicsView but it allows you to scale the picture and maintains the aspect ratio"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setScene(QGraphicsScene(self))
+        self.m_pixmapItem = self.scene().addPixmap(QPixmap())
+        self.setAlignment(qt.Qt.AlignmentFlag.AlignCenter)
+
+    @property
+    def pixmap(self):
+        return self.m_pixmapItem.pixmap()
+
+    @pixmap.setter
+    def pixmap(self, newPixmap):
+        self.m_pixmapItem.setPixmap(newPixmap)
+        self.fitInView(self.m_pixmapItem, qt.Qt.AspectRatioMode.KeepAspectRatio)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.fitInView(self.m_pixmapItem, qt.Qt.AspectRatioMode.KeepAspectRatio)
+
+
+# From this: https://stackoverflow.com/questions/74095602/how-to-adjust-video-to-widget-size-in-qt-python
+class SquareVideo(QFrame):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.background = QGraphicsView(self)
+        self.background.setBackgroundBrush(qt.Qt.GlobalColor.black)
+        self.background.setFrameShape(QFrame.Shape.NoFrame) # no borders
+        self.background.setHorizontalScrollBarPolicy(qt.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.background.setVerticalScrollBarPolicy(qt.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        scene = QGraphicsScene()
+        self.background.setScene(scene)
+        self.videoItem = QGraphicsVideoItem()
+        scene.addItem(self.videoItem)
+
+        self.videoItem.nativeSizeChanged.connect(self.resizeBackground)
+
+    def resizeBackground(self):
+        # ensure that the view is always below any other child
+        self.background.lower()
+        # make the view as big as the parent
+        self.background.resize(self.size())
+        # resize the item to the video size
+        self.videoItem.setSize(self.videoItem.nativeSize())
+        # fit the whole viewable area to the item and crop exceeding margins
+        self.background.fitInView(
+            self.videoItem, qt.Qt.AspectRatioMode.KeepAspectRatioByExpanding)
+        # scroll the view to the center of the item
+        self.background.centerOn(self.videoItem)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.resizeBackground()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # I feel like this would trigger recursion but I guess not
+        self.resize(event.size().height(), event.size().height())
+
+        self.resizeBackground()
+
+
+class CameraWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.capture_handler = None
+        self.last_hooptie = None
+        self.active = True 
+
+        self.layout = QVBoxLayout()
+
+        self.viewfinder = SquareVideo()
+        self.layout.addWidget(self.viewfinder)
+
+        self.button = QPushButton(self)
+        self.button.setText("RATE MY HOOPTIE!!!!!")
+        self.layout.addWidget(self.button)
+
+        self.wnd = QWidget(self)
+        self.wnd.setLayout(self.layout)
+        self.setLayout(self.layout)
+
+        self.camera = QCamera()
+        self.captureSession = QMediaCaptureSession()
+        self.img_capture = QImageCapture(self.camera)
+
+        self.captureSession.setCamera(self.camera)
+        self.captureSession.setVideoOutput(self.viewfinder.videoItem)
+        self.captureSession.setImageCapture(self.img_capture)
+
+        self.button.clicked.connect(self.capture_hooptie)
+        self.img_capture.errorOccurred.connect(self.on_error)
+        self.camera.errorOccurred.connect(self.on_cam_error)
+        self.img_capture.imageCaptured.connect(self.captured)
+
+        self.camera.start()
+
+    def set_capture_handler(self, handler):
+        self.capture_handler = handler
+
+    def capture_hooptie(self):
+        assert self.img_capture.isReadyForCapture()
+        self.img_capture.capture()
+
+    def on_error(self, _id, _error, error_str):
+        print(f"Error: {error_str}")
+
+    def on_cam_error(self, _error, error_str):
+        print(f"Error: {error_str}")
+
+    def captured(self, id: int, img: QImage):
+        assert self.capture_handler is not None
+        self.capture_handler(img)
+
+
+class RatingWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.restart_handler = None
+
+
+        self.configure_view_layout()
+        self.configure_control_layout()
+
+        top_layout = QVBoxLayout()
+        top_layout.addLayout(self.view_layout)
+        top_layout.addLayout(self.control_layout)
+        
+        self.setLayout(top_layout)
+
+    def configure_view_layout(self):
+        self.view_layout = QHBoxLayout()
+
+        self.hooptie_view = ScaledImage()
+        self.view_layout.addWidget(self.hooptie_view)
+
+        roast_font = QFont()
+        roast_font.setPointSize(24)
+
+        self.roast_view = QLabel()
+        self.roast_view.setFont(roast_font)
+
+        self.view_layout.addWidget(self.roast_view)
+
+    def configure_control_layout(self):
+        self.control_layout = QHBoxLayout()
+
+        button_font = QFont()
+        button_font.setPointSize(18)
+
+        self.restart_button = QPushButton(self)
+        self.restart_button.clicked.connect(self.restart)
+        self.restart_button.setText("Rate another hooptie!")
+        self.restart_button.setFont(button_font)
+        self.control_layout.addWidget(self.restart_button)
+
+        self.repeat_button = QPushButton(self)
+        self.repeat_button.setText("Roast me again!")
+        self.repeat_button.setFont(button_font)
+        self.control_layout.addWidget(self.repeat_button)
+
+        self.save_button = QPushButton(self)
+        self.save_button.setText("Save that shit!")
+        self.save_button.setFont(button_font)
+        self.control_layout.addWidget(self.save_button)
+
+    def set_restart_handler(self, handler):
+        self.restart_handler = handler
+
+    def restart(self):
+        assert self.restart_handler is not None
+        self.restart_handler()
+
+    def set_hooptie(self, img: QImage): 
+        width = img.size().width()
+        height = img.size().height()
+        # We know that the image is always wider than it is tall (because it's from a wide-screen camera)
+        left = int((width - height) / 2)
+        cropped = img.copy(left, 0, height, height)
+        self.hooptie_view.pixmap = QPixmap.fromImage(cropped)
+        self.roast_view.setText("Your hooptie is bad and you should feel bad.")
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.layout = QStackedLayout()
+
+        self.camera_view = CameraWidget()
+        self.camera_view.set_capture_handler(self.show_rating)
+        self.layout.addWidget(self.camera_view)
+        
+        self.rating_view = RatingWidget()
+        self.rating_view.set_restart_handler(self.show_camera)
+        self.layout.addWidget(self.rating_view)
+
+        self.layout.setCurrentIndex(0)
+
+        window = QWidget()
+        window.setLayout(self.layout)
+        self.setCentralWidget(window)
+
+    def show_rating(self, img: QImage):
+        self.rating_view.set_hooptie(img)
+        self.layout.setCurrentIndex(1)
+
+    def show_camera(self):
+        self.layout.setCurrentIndex(0)
+
 def main():
-    parser = argparse.ArgumentParser(description="Rate your hooptie with the power of ARTIFICIAL INTELLIGENCE!")
-    parser.add_argument("-f", "--file", type=pathlib.Path, help="Rate a static image rather than using the camera. If there is a FILENAME.txt in the same directory, that will be used as the rating rather than asking the ARTIFICIAL INTELLIGENCE!.")
-    parser.add_argument("-o", "--output", type=pathlib.Path, help="Save the joint img+prediction to the specified file.")
-    parser.add_argument("-s", "--silent", action="store_true", help="Supress the totally badass robot voice.")
+    app = QApplication([])
 
-    args = parser.parse_args()
+    window = MainWindow()
+    window.show()
 
-    print(usage)
-
-    imgWindow = "Your Hooptie"
-    cv2.namedWindow(imgWindow, cv2.WINDOW_NORMAL)
-
-    if args.file is not None:
-        imgPath = args.file.resolve()
-        msgPath = imgPath.with_suffix(".txt")
-
-        img = cv2.imread(str(imgPath))
-        img = crop_square(img)
-
-        if msgPath.exists():
-            with open(msgPath, 'r') as f:
-                msg = f.read()
-        else:
-            OAIClient = OpenAI()
-            msg = getPrediction(img, OAIClient)
-
-        msgImg = display(img, msg, imgWindow, args.silent)
-
-        if args.output is not None:
-            cv2.imwrite(str(args.output), msgImg)
-    else:
-        cam = cv2.VideoCapture(0)
-        OAIClient = OpenAI()
-        while True:
-            ret, frame = cam.read()
-            if not ret:
-                raise RuntimeError("Camera failed!")
-
-            frame = crop_square(frame)
-            cv2.imshow(imgWindow, frame)
-            k = cv2.waitKey(33)
-            if k == 32:
-                name = str(random.randint(0, 10e9))
-                msg = getPrediction(frame, OAIClient)
-
-                outDir = "thill24_race1/"
-                with open(outDir + name + ".txt", 'w') as f:
-                    f.write(msg)
-                cv2.imwrite(outDir + name + ".png", frame)
-
-                msgImg = display(frame, msg, imgWindow, args.silent)
-                if args.output is not None:
-                    cv2.imwrite(str(args.output), msgImg)
-            elif k == 27:
-                break
+    return app.exec()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
 
