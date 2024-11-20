@@ -29,6 +29,8 @@ from PyQt6.QtWidgets import (
         QGraphicsScene,
         QFrame,
         QSizePolicy,
+        QFileDialog,
+        QMessageBox,
 )
 
 from PyQt6.QtMultimedia import (
@@ -55,7 +57,7 @@ Usage:
 
 class Critic(abc.ABC):
     @abc.abstractmethod
-    def rate(self, img: np.ndarray) -> str:
+    def rate(self, img: QImage) -> str:
         pass
 
 
@@ -64,7 +66,7 @@ class ReplayCritic(Critic):
         with open(msg_path, 'r') as f:
             self.msg = f.read()
 
-    def rate(self, img: np.ndarray) -> str:
+    def rate(self, img: QImage) -> str:
         return self.msg
 
 
@@ -72,16 +74,14 @@ class OpenaiCritic(Critic):
     def __init__(self):
         self.client = OpenAI()
 
-    def rate(self, img: np.ndarray) -> str:
-        im = pil.Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        im = im.resize((512, 512))
+    def rate(self, img: pil.Image) -> str:
+        img = img.resize((512, 512)).convert("RGB")
 
         b = io.BytesIO()
-        im.save(b, format="JPEG")
+        img.save(b, format="JPEG")
         img_str = base64.b64encode(b.getvalue()).decode("utf-8")
 
         completion = self.client.chat.completions.create(
-            # model="gpt-4-vision-preview",
             model="gpt-4o",
             messages=[
                 {
@@ -244,87 +244,6 @@ def crop_square(img: np.ndarray):
 #             elif k == 27:
 #                 break
 
-# class MainWindow(qtw.QMainWindow):
-#     def __init__(self):
-#         super().__init__()
-#
-#         self.setWindowTitle("Rate My Hooptie!")
-#
-#         self.label = qtw.QLabel()
-#
-#         img = cv2.imread("/Users/nathanp/repos/ratemyhooptie/tests/testResources/test.png")
-#         rgb_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#         pil_image = pil.Image.fromarray(rgb_image).convert('RGB')
-#         qimg = qtgui.QPixmap.fromImage(pil.ImageQt.ImageQt(pil_image))
-#         
-#         self.label.setPixmap(qimg)
-#         self.setCentralWidget(self.label)
-#         # self.input = qtw.QLineEdit()
-#         # self.input.textChanged.connect(self.label.setText)
-#         #
-#         # layout = qtw.QHBoxLayout()
-#         # layout.addWidget(self.input)
-#         # layout.addWidget(self.label)
-#         #
-#         # container = qtw.QWidget()
-#         # container.setLayout(layout)
-#         #
-#         # self.setCentralWidget(container)
-
-
-# class LearnMainWindow(qtw.QMainWindow):
-#     def __init__(self):
-#         super().__init__()
-#
-#         self.setWindowTitle("Rate My Hooptie!")
-#
-#         devs = qtmed.QMediaDevices.videoInputs()
-#         assert len(devs) > 0, "Camera not working"
-#
-#         camera = qtmed.QCamera()
-#         self.viewfinder = qt.QtMultimediaWidgets.QVideoWidget()
-#
-#         captureSession = qtmed.QMediaCaptureSession()
-#         captureSession.setCamera(camera)
-#         captureSession.setVideoOutput(self.viewfinder)
-#
-#         layout = qtw.QHBoxLayout()
-#         layout.addWidget(self.viewfinder)
-#
-#         self.wnd = qtw.QWidget(self)
-#         self.wnd.setLayout(layout)
-#         self.setCentralWidget(self.wnd)
-#
-#         # self.viewfinder.show()
-#         camera.start()
-#
-#         container = qtw.QWidget()
-#         container.setLayout(layout)
-#
-#         self.setCentralWidget(container)
-#
-#
-#
-# def main():
-#     app = qtw.QApplication(sys.argv)
-#
-#     window = LearnMainWindow()
-#     window.show()
-#     # camera = qtmed.QCamera()
-#     # viewfinder = qt.QtMultimediaWidgets.QVideoWidget()
-#     #
-#     # captureSession = qtmed.QMediaCaptureSession()
-#     # captureSession.setCamera(camera)
-#     # captureSession.setVideoOutput(viewfinder)
-#     #
-#     # viewfinder.show()
-#     # camera.start()
-#
-#     app.exec()
-#
-#
-# if __name__ == "__main__":
-#     main()
 
 # from https://stackoverflow.com/questions/69183307/how-to-display-image-in-ratio-as-preserveaspectfit-in-qt-widgets
 class ScaledImage(QGraphicsView):
@@ -446,11 +365,22 @@ class CameraWidget(QWidget):
         self.capture_handler(img)
 
 
+def speak(msg: str) -> sp.Popen:
+            return sp.Popen(["say", "-v", "Daniel", "-r", "175", msg])
+
+
 class RatingWidget(QWidget):
-    def __init__(self):
+    def __init__(self, output_dir: pathlib.Path, silent: bool = False):
         super().__init__()
+        self.critic = None
+        self.output_dir = output_dir
+        self.speech_proc = None
+        self.silent = silent
+
         self.restart_handler = None
 
+        self.review = None
+        self.hooptie = None
 
         self.configure_view_layout()
         self.configure_control_layout()
@@ -465,15 +395,16 @@ class RatingWidget(QWidget):
         self.view_layout = QHBoxLayout()
 
         self.hooptie_view = ScaledImage()
-        self.view_layout.addWidget(self.hooptie_view)
+        self.view_layout.addWidget(self.hooptie_view, stretch=60)
 
         roast_font = QFont()
         roast_font.setPointSize(24)
 
         self.roast_view = QLabel()
+        self.roast_view.setWordWrap(True)
         self.roast_view.setFont(roast_font)
 
-        self.view_layout.addWidget(self.roast_view)
+        self.view_layout.addWidget(self.roast_view, stretch=40)
 
     def configure_control_layout(self):
         self.control_layout = QHBoxLayout()
@@ -488,43 +419,109 @@ class RatingWidget(QWidget):
         self.control_layout.addWidget(self.restart_button)
 
         self.repeat_button = QPushButton(self)
+        self.repeat_button.clicked.connect(self.say_again)
         self.repeat_button.setText("Roast me again!")
         self.repeat_button.setFont(button_font)
         self.control_layout.addWidget(self.repeat_button)
 
         self.save_button = QPushButton(self)
+        self.save_button.clicked.connect(self.save_rating)
         self.save_button.setText("Save that shit!")
         self.save_button.setFont(button_font)
         self.control_layout.addWidget(self.save_button)
+
+    def save_rating(self):
+        if self.hooptie is None or self.review is None:
+            button = QMessageBox.warning(self, "noHooptieWarning", "You must rate a hooptie first")
+        else:
+            hooptie_path, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Save that shit!",
+                    str(self.output_dir),
+                    "Images (*.png)",
+            ) 
+            hooptie_path = pathlib.Path(hooptie_path)
+            if hooptie_path.suffix == '':
+                hooptie_path = hooptie_path.with_suffix(".png")
+            
+            review_path = hooptie_path.with_suffix(".txt")
+
+            self.hooptie.save(str(hooptie_path))
+            with open(review_path, 'w') as f:
+                f.write(self.review)
 
     def set_restart_handler(self, handler):
         self.restart_handler = handler
 
     def restart(self):
-        assert self.restart_handler is not None
-        self.restart_handler()
+        if self.speech_proc is not None:
+            self.speech_proc.kill()
+            self.speech_proc = None
+            
+        if self.restart_handler is not None:
+            self.restart_handler()
+
+    def say_again(self):
+        if self.speech_proc is not None:
+            self.speech_proc.kill()
+
+        self.speech_proc = speak(self.review)
 
     def set_hooptie(self, img: QImage): 
         width = img.size().width()
         height = img.size().height()
+
         # We know that the image is always wider than it is tall (because it's from a wide-screen camera)
         left = int((width - height) / 2)
-        cropped = img.copy(left, 0, height, height)
-        self.hooptie_view.pixmap = QPixmap.fromImage(cropped)
-        self.roast_view.setText("Your hooptie is bad and you should feel bad.")
+        self.hooptie = img.copy(left, 0, height, height)
+
+        self.hooptie_view.pixmap = QPixmap.fromImage(self.hooptie)
+
+        # Convert from QImage to PIL image
+        img_buf = qt.QBuffer()
+        img_buf.open(qt.QIODevice.OpenModeFlag.ReadWrite)
+        self.hooptie.save(img_buf, "PNG")
+        self.review = self.critic.rate(pil.Image.open(io.BytesIO(img_buf.data())))
+        img_buf.close()
+
+        self.roast_view.setText(self.review)
+
+        # Say it out loud!
+        if not self.silent:
+            self.speech_proc = speak(self.review)
+    
+    def set_critic(self, critic: Critic):
+        self.critic = critic
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(
+            self,
+            output_dir: pathlib.Path,
+            replay: bool = False,
+            silent: bool = False
+    ):
         super().__init__()
         self.layout = QStackedLayout()
+        if output_dir is None:
+            self.output_dir = pathlib.Path.home()
+        else:
+            self.output_dir = output_dir
 
-        self.camera_view = CameraWidget()
-        self.camera_view.set_capture_handler(self.show_rating)
-        self.layout.addWidget(self.camera_view)
+        if not replay:
+            self.camera_view = CameraWidget()
+            self.camera_view.set_capture_handler(self.show_rating)
+            self.layout.addWidget(self.camera_view)
         
-        self.rating_view = RatingWidget()
-        self.rating_view.set_restart_handler(self.show_camera)
+        self.rating_view = RatingWidget(self.output_dir, silent)
+
+        if replay:
+            self.rating_view.set_restart_handler(self.load_from_file)
+        else:
+            critic = OpenaiCritic()
+            self.rating_view.set_critic(critic)
+            self.rating_view.set_restart_handler(self.show_camera)
+
         self.layout.addWidget(self.rating_view)
 
         self.layout.setCurrentIndex(0)
@@ -540,10 +537,41 @@ class MainWindow(QMainWindow):
     def show_camera(self):
         self.layout.setCurrentIndex(0)
 
+    def load_from_file(self):
+        hooptie_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Choose Your Hooptie",
+                str(self.output_dir),
+                "Images (*.png)",
+        )
+
+        if hooptie_path == "":
+            return
+        else:
+            hooptie_path = pathlib.Path(hooptie_path)
+            hooptie = QImage(str(hooptie_path))
+
+            rating_path = hooptie_path.with_suffix(".txt")
+            if rating_path.exists():
+                critic = ReplayCritic(rating_path)
+            else:
+                critic = OpenaiCritic()
+
+            self.rating_view.set_critic(critic)
+            self.rating_view.set_hooptie(hooptie)
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Rate your hooptie with the power of ARTIFICIAL INTELLIGENCE!")
+    parser.add_argument("-r","--replay", action="store_true", help="Run in replay mode where you can load images from a file instead of the camera. If there is a '.txt' version of the image as well, then that will be displayed instead of using the AI critic.")
+    parser.add_argument("-o", "--output", type=pathlib.Path, help="Save the images and predictions to the specified folder.")
+    parser.add_argument("-s", "--silent", action="store_true", help="Supress the totally badass robot voice.")
+
+    args = parser.parse_args()
+
     app = QApplication([])
 
-    window = MainWindow()
+    window = MainWindow(args.output, args.replay, args.silent)
     window.show()
 
     return app.exec()
