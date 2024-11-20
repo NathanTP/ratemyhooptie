@@ -440,6 +440,9 @@ class RatingWidget(QWidget):
                     str(self.output_dir),
                     "Images (*.png)",
             ) 
+            if hooptie_path == "":
+                return
+
             hooptie_path = pathlib.Path(hooptie_path)
             if hooptie_path.suffix == '':
                 hooptie_path = hooptie_path.with_suffix(".png")
